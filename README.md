@@ -5,7 +5,22 @@ Grossanzeige**. Ein Baustein genügt – das Programm sendet dann laufend, was a
 der echten Matrix leuchtet. Gedacht für den Makerspace: Beamer/Monitor zeigt
 gross, was der micro:bit anzeigt.
 
-Passt zur Web-Serial-Anzeige `microbit-matrix-display.html`.
+Passt zur Web-Serial-Anzeige `microbit-matrix-display.html` (siehe unten).
+
+## Bildschirm-Anzeige und Anleitung
+
+Neben der Erweiterung liegen in diesem Repo:
+
+- **[`microbit-matrix-display.html`](microbit-matrix-display.html)** – die
+  Bildschirm-Grossanzeige. In **Chrome** oder **Edge** öffnen, „Verbinden"
+  klicken und den micro:bit (USB) wählen. Läuft komplett offline. Buttons:
+  Verbinden, Demo, Vollbild, Daten ausblenden, Debug.
+- **[`Anleitung-Bildschirm-Spiegel.html`](Anleitung-Bildschirm-Spiegel.html)** –
+  druckfertige Schritt-für-Schritt-Anleitung (A4) für den Makerspace.
+
+> Tipp: Wird das Repo über **GitHub Pages** veröffentlicht, lässt sich die Anzeige
+> direkt per URL öffnen (Web Serial funktioniert dort, weil die Seite über https
+> ausgeliefert wird) – dann muss niemand die HTML-Datei lokal speichern.
 
 ## Blöcke
 
@@ -68,6 +83,9 @@ M:0090009900999909990009000
 
 `M:` gefolgt von 25 Ziffern (0 = LED aus, 9 = LED an), zeilenweise von oben links.
 Die Übertragung läuft über USB-Serial mit 115200 Baud.
+
+Die Sensor-Blöcke senden zusätzlich `D:<cm>` (Abstand) und
+`S:<temp>,<licht>,<ton>` (Sensorwerte) – jeweils als eigene Zeile.
 
 > Hinweis: `led.point` liefert nur an/aus, der Spiegel zeigt also volle Helligkeit.
 

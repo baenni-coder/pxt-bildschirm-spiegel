@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Micro:Bit Matrix – Grossanzeige</title>
+<style>
+  :root{
+    --bg:#0d0f14; --panel:#161a22; --line:#242a36;
+    --text:#e8ecf2; --muted:#8b95a7; --accent:#2ec4b6;
+    --led-off:#26130f; --led-on:255,45,25; /* Micro:Bit-Rot als RGB */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  }
+  header{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);
+  }
+  header h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.3px}
+  header .spacer{flex:1}
+  button{
+    font:inherit;font-weight:600;color:var(--text);
+    background:#222836;border:1px solid var(--line);border-radius:10px;
+    padding:9px 16px;cursor:pointer;transition:.15s;
+  }
+  button:hover{background:#2b3346;border-color:#3a445a}
+  button.primary{background:var(--accent);color:#04201d;border-color:var(--accent)}
+  button.primary:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .dot{width:11px;height:11px;border-radius:50%;background:#5a6272;display:inline-block;margin-right:7px;vertical-align:-1px}
+  .dot.on{background:#38d39f;box-shadow:0 0 10px #38d39f}
+  .dot.err{background:#ff5a52;box-shadow:0 0 10px #ff5a52}
+  #status{color:var(--muted);font-size:14px}
+
+  main{flex:1;display:flex;min-height:0}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+  #matrix{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:min(3.2vmin,34px);
+    width:min(78vmin,78vh);height:min(78vmin,78vh);
+  }
+  .led{
+    border-radius:22%;background:var(--led-off);
+    transition:background .06s linear, box-shadow .06s linear;
+  }
+
+  aside{
+    width:270px;background:var(--panel);border-left:1px solid var(--line);
+    padding:18px;display:flex;flex-direction:column;gap:18px;overflow:auto;
+  }
+  .card{background:#12151c;border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+  .dist-val{font-size:40px;font-weight:700;line-height:1}
+  .dist-val small{font-size:16px;color:var(--muted);font-weight:600}
+  .bar{height:10px;background:#0a0d12;border-radius:6px;margin-top:12px;overflow:hidden}
+  .bar>span{display:block;height:100%;width:0;background:linear-gradient(90deg,#38d39f,#2ec4b6);transition:width .12s}
+  .kv{display:flex;justify-content:space-between;font-size:14px;padding:3px 0;color:var(--muted)}
+  .kv b{color:var(--text);font-weight:600}
+  .pat{font-size:15px;font-weight:600;color:var(--accent)}
+  #raw{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);word-break:break-all;min-height:16px}
+  .hint{font-size:12px;color:var(--muted);line-height:1.5}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>Micro:Bit&nbsp;·&nbsp;Matrix-Grossanzeige</h1>
+  <span id="status"><span class="dot" id="dot"></span>nicht verbunden</span>
+  <span class="spacer"></span>
+  <button id="btnConnect" class="primary">Verbinden</button>
+  <button id="btnDemo">Demo</button>
+  <button id="btnFull">Vollbild</button>
+  <button id="btnData">Daten ausblenden</button>
+  <button id="btnDebug">Debug</button>
+</header>
+
+<main>
+  <div class="stage"><div id="matrix"></div></div>
+  <aside>
+    <div class="card">
+      <div class="label">Ultraschall-Abstand</div>
+      <div class="dist-val"><span id="dist">–</span> <small>cm</small></div>
+      <div class="bar"><span id="distBar"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">Status</div>
+      <div class="kv"><span>Muster</span><b class="pat" id="pat">–</b></div>
+      <div class="kv"><span>Temperatur</span><b id="temp">–</b></div>
+      <div class="kv"><span>Licht</span><b id="light">–</b></div>
+      <div class="kv"><span>Ton</span><b id="sound">–</b></div>
+    </div>
+    <div class="card hidden" id="debugCard">
+      <div class="label">Letzte Zeile</div>
+      <div id="raw">–</div>
+    </div>
+    <div class="card">
+      <div class="label">Bedienung</div>
+      <div class="hint">
+        „Verbinden" klicken und den Micro:Bit (USB) wählen.<br>
+        Nur <b>Chrome</b> oder <b>Edge</b> (Web Serial).<br>
+        Baudrate 115200. Läuft komplett offline.
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>
+/* ============================================================
+   Micro:Bit Matrix-Grossanzeige  ·  Web Serial
+   Zeigt den Zustand der echten 5x5-LED-Matrix gross am Bildschirm.
+
+   Erwartetes serielles Protokoll (je eine Zeile, 115200 Baud):
+     P:HEART            -> zeigt ein benanntes Muster (siehe PATTERNS)
+     M:0090009900...    -> 25 Ziffern 0-9 = Helligkeit jedes Pixels (zeilenweise)
+     D:37               -> Ultraschall-Abstand in cm
+     S:24,180,96        -> Temperatur, Licht, Ton (optional)
+   Unbekannte Zeilen werden ignoriert.
+   ============================================================ */
+
+/* ---- Muster-Bibliothek (0 = aus, 9 = volle Helligkeit) ---- */
+const PATTERNS = {
+  CLEAR:       ["00000","00000","00000","00000","00000"],
+  HEART:       ["09090","99999","99999","09990","00900"],
+  HEART_SMALL: ["00000","09090","09990","00900","00000"],
+  YES:         ["00000","00009","00090","90900","09000"],
+  NO:          ["90009","09090","00900","09090","90009"],
+  SUN:         ["90909","09990","99999","09990","90909"],
+  SURPRISED:   ["09090","00000","00900","09090","00900"],
+  ARROW_N:     ["00900","09990","90909","00900","00900"],
+  ARROW_S:     ["00900","00900","90909","09990","00900"],
+  DUCK:        ["09900","99900","09990","09990","00000"],
+};
+
+/* ---- 5x5 Matrix aufbauen ---- */
+const matrixEl = document.getElementById('matrix');
+const leds = [];
+for (let i = 0; i < 25; i++){
+  const d = document.createElement('div');
+  d.className = 'led';
+  matrixEl.appendChild(d);
+  leds.push(d);
+}
+function setPixel(i, b){                       // b = 0..9
+  const led = leds[i];
+  if (b <= 0){ led.style.background = 'var(--led-off)'; led.style.boxShadow = 'none'; return; }
+  const a = b / 9;
+  led.style.background = `rgba(var(--led-on), ${0.25 + 0.75*a})`;
+  led.style.boxShadow  = `0 0 ${8+22*a}px rgba(var(--led-on), ${0.55*a})`;
+}
+function renderRows(rows){                      // rows = 5 Strings à 5 Ziffern
+  for (let y = 0; y < 5; y++)
+    for (let x = 0; x < 5; x++)
+      setPixel(y*5 + x, parseInt(rows[y][x], 10) || 0);
+}
+function showPattern(name){
+  const p = PATTERNS[name.toUpperCase()];
+  if (p){ renderRows(p); document.getElementById('pat').textContent = name; }
+}
+function showMatrix25(str){                     // 25 Ziffern
+  for (let i = 0; i < 25; i++) setPixel(i, parseInt(str[i],10) || 0);
+  document.getElementById('pat').textContent = 'M (Pixel)';
+}
+showPattern('CLEAR');
+
+/* ---- Werte glätten und ruhig anzeigen ---- */
+const val = { dist: null, temp: null, light: null, sound: null };  // geglättete Werte
+function ema(prev, v, a){ return prev === null ? v : prev + a * (v - prev); }
+
+function renderValues(){
+  const distEl = document.getElementById('dist');
+  const barEl  = document.getElementById('distBar');
+  if (val.dist === null){ distEl.textContent = '–'; barEl.style.width = '0%'; }
+  else {
+    const cm = Math.round(val.dist);
+    distEl.textContent = cm;
+    barEl.style.width = Math.max(0, Math.min(100, 100 - cm)) + '%';
+  }
+  document.getElementById('temp').textContent  = val.temp  === null ? '–' : Math.round(val.temp) + ' °C';
+  document.getElementById('light').textContent = val.light === null ? '–' : Math.round(val.light);
+  document.getElementById('sound').textContent = val.sound === null ? '–' : Math.round(val.sound);
+}
+setInterval(renderValues, 250);   // Anzeige nur 4x pro Sekunde, damit nichts zappelt
+
+/* ---- Eine Protokoll-Zeile verarbeiten ---- */
+function handleLine(line){
+  line = line.trim();
+  if (!line) return;
+  document.getElementById('raw').textContent = line;
+  if (line.startsWith('P:'))      showPattern(line.slice(2));
+  else if (line.startsWith('M:')){ const s = line.slice(2); if (/^[0-9]{25}$/.test(s)) showMatrix25(s); }
+  else if (line.startsWith('D:')){
+    const v = parseInt(line.slice(2), 10);
+    if (isNaN(v) || v <= 0 || v > 400) val.dist = null;     // kein Objekt in Reichweite
+    else val.dist = ema(val.dist, v, 0.4);
+  }
+  else if (line.startsWith('S:')){
+    const p = line.slice(2).split(',');
+    const t = parseFloat(p[0]), l = parseFloat(p[1]), s = parseFloat(p[2]);
+    if (!isNaN(t) && t >= -40 && t <= 125) val.temp = ema(val.temp, t, 0.2);  // Plausibilitätsfilter
+    if (!isNaN(l)) val.light = ema(val.light, l, 0.2);
+    if (!isNaN(s)) val.sound = ema(val.sound, s, 0.25);
+  }
+}
+
+/* ---- Web Serial ---- */
+let port = null, reader = null, keepReading = false;
+const statusEl = document.getElementById('status');
+const dotEl = document.getElementById('dot');
+const btnConnect = document.getElementById('btnConnect');
+
+function setStatus(text, cls){
+  statusEl.innerHTML = '<span class="dot ' + (cls||'') + '" id="dot"></span>' + text;
+}
+
+async function readLoop(){
+  const decoder = new TextDecoderStream();
+  const closed = port.readable.pipeTo(decoder.writable).catch(()=>{});
+  reader = decoder.readable.getReader();
+  let buf = '';
+  keepReading = true;
+  try{
+    while (keepReading){
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0){
+        handleLine(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+      }
+    }
+  } catch(e){ /* Verbindung unterbrochen */ }
+  finally { try{ reader.releaseLock(); }catch(e){}; await closed; }
+}
+
+async function openPort(p){
+  port = p;
+  await port.open({ baudRate: 115200 });
+  setStatus('verbunden', 'on');
+  btnConnect.textContent = 'Trennen';
+  readLoop();
+}
+
+async function connect(){
+  if (port){ await disconnect(); return; }
+  if (!('serial' in navigator)){
+    setStatus('Web Serial nicht unterstützt – bitte Chrome/Edge', 'err');
+    return;
+  }
+  try{
+    const p = await navigator.serial.requestPort();
+    await openPort(p);
+  } catch(e){ setStatus('Auswahl abgebrochen', 'err'); }
+}
+
+async function disconnect(){
+  keepReading = false;
+  try{ if (reader) await reader.cancel(); }catch(e){}
+  try{ if (port) await port.close(); }catch(e){}
+  port = null;
+  setStatus('nicht verbunden', '');
+  btnConnect.textContent = 'Verbinden';
+}
+
+/* Auto-Verbindung: bereits freigegebenen Port beim Laden wieder öffnen */
+async function tryAutoConnect(){
+  if (!('serial' in navigator)) return;
+  const ports = await navigator.serial.getPorts();
+  if (ports.length){ try{ await openPort(ports[0]); }catch(e){} }
+}
+if ('serial' in navigator){
+  navigator.serial.addEventListener('disconnect', () => {
+    setStatus('Gerät getrennt – neu verbinden', 'err');
+    btnConnect.textContent = 'Verbinden'; port = null; keepReading = false;
+  });
+}
+
+/* ---- Demo-Modus (ohne Gerät) ---- */
+let demo = null;
+function toggleDemo(){
+  if (demo){ clearInterval(demo); demo = null; document.getElementById('btnDemo').textContent='Demo'; return; }
+  document.getElementById('btnDemo').textContent='Demo stopp';
+  let cm = 100, dir = -3, big = false;
+  demo = setInterval(()=>{
+    cm += dir; if (cm<=8||cm>=100) dir = -dir;
+    handleLine('D:'+cm);
+    if (cm < 15){ big=!big; handleLine('P:'+(big?'HEART':'HEART_SMALL')); }
+    else if (cm < 40) handleLine('P:HEART_SMALL');
+    else handleLine('P:CLEAR');
+    handleLine('S:23,'+ (200-cm) +','+ Math.floor(Math.random()*120));
+  }, 150);
+}
+
+/* ---- Buttons ---- */
+btnConnect.addEventListener('click', connect);
+document.getElementById('btnDemo').addEventListener('click', toggleDemo);
+document.getElementById('btnFull').addEventListener('click', ()=>{
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+});
+document.getElementById('btnDebug').addEventListener('click', ()=>{
+  document.getElementById('debugCard').classList.toggle('hidden');
+});
+document.getElementById('btnData').addEventListener('click', ()=>{
+  const hidden = document.querySelector('aside').classList.toggle('hidden');
+  document.getElementById('btnData').textContent = hidden ? 'Daten einblenden' : 'Daten ausblenden';
+});
+
+tryAutoConnect();
+</script>
+</body>
+</html>
