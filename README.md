@@ -11,6 +11,8 @@ Passt zur Web-Serial-Anzeige `microbit-matrix-display.html`.
 
 - **Bildschirm-Spiegel starten** – startet die Übertragung (läuft im Hintergrund).
 - **Bildschirm-Spiegel stoppen** – beendet die Übertragung.
+- **Abstand senden [cm]** – schickt einen Abstandswert an die Anzeige (`D:`).
+- **Sensorwerte senden Temperatur [ ] Licht [ ] Ton [ ]** – schickt drei Werte (`S:`).
 
 ## Beispiel
 
@@ -22,6 +24,29 @@ basic.forever(function () {
 ```
 
 Das eigene Programm bleibt normal bedienbar – der Spiegel läuft nebenher.
+
+### Mit Grove-Ultraschall (Exponat)
+
+```blocks
+bildschirmSpiegel.starten()
+basic.forever(function () {
+    let d = grove.measureInCentimeters(DigitalPin.P0)
+    bildschirmSpiegel.abstandSenden(d)
+    bildschirmSpiegel.werteSenden(input.temperature(), 0, input.soundLevel())
+    if (d > 0 && d < 15) {
+        basic.showIcon(IconNames.Heart)
+    } else if (d > 0 && d < 40) {
+        basic.showIcon(IconNames.SmallHeart)
+    } else {
+        basic.clearScreen()
+    }
+    basic.pause(100)
+})
+```
+
+> Der eingebaute Lichtsensor nutzt die LED-Matrix und würde den Spiegel stören –
+> darum steht der Lichtwert oben auf `0`. Für Helligkeit einen externen
+> Grove-Lichtsensor verwenden.
 
 ## Verwendung als Erweiterung
 

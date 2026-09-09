@@ -5,12 +5,21 @@
  * Bildschirm-Grossanzeige. Protokoll: eine Zeile "M:" + 25 Ziffern
  * (0 = LED aus, 9 = LED an), zeilenweise von oben links.
  *
- * Der Baustein liest die Matrix mit led.point(x, y) zurueck und spiegelt
- * damit genau das, was leuchtet - egal ob Icon, Text oder einzelne LEDs.
+ * Zusaetzlich koennen Sensorwerte an die Anzeige geschickt werden:
+ *   D:<cm>              -> Ultraschall-Abstand in cm
+ *   S:<temp>,<licht>,<ton>  -> Temperatur, Licht, Ton
  */
-//% color="#2ec4b6" weight=100 icon="" block="Bildschirm-Spiegel"
+//% color="#2ec4b6" weight=100 icon="" block="Bildschirm-Spiegel"
 namespace bildschirmSpiegel {
     let running = false
+    let usbReady = false
+
+    function ensureUSB(): void {
+        if (!usbReady) {
+            serial.redirectToUSB()
+            usbReady = true
+        }
+    }
 
     /**
      * Startet den Bildschirm-Spiegel. Er laeuft im Hintergrund weiter,
@@ -21,7 +30,7 @@ namespace bildschirmSpiegel {
     export function starten(): void {
         if (running) return
         running = true
-        serial.redirectToUSB()
+        ensureUSB()
         control.inBackground(function () {
             while (running) {
                 let s = ""
@@ -43,5 +52,29 @@ namespace bildschirmSpiegel {
     //% weight=90
     export function stoppen(): void {
         running = false
+    }
+
+    /**
+     * Schickt einen Abstandswert (cm) an die Bildschirm-Anzeige.
+     * @param cm der Abstand in Zentimetern, z.B. 37
+     */
+    //% block="Abstand senden %cm cm"
+    //% weight=80
+    export function abstandSenden(cm: number): void {
+        ensureUSB()
+        serial.writeLine("D:" + cm)
+    }
+
+    /**
+     * Schickt Temperatur, Licht und Ton an die Bildschirm-Anzeige.
+     * @param temp Temperatur in Grad Celsius
+     * @param licht Lichtwert (0-255), 0 wenn nicht benutzt
+     * @param ton Lautstaerke (0-255), 0 wenn nicht benutzt
+     */
+    //% block="Sensorwerte senden|Temperatur %temp Licht %licht Ton %ton"
+    //% weight=70
+    export function werteSenden(temp: number, licht: number, ton: number): void {
+        ensureUSB()
+        serial.writeLine("S:" + temp + "," + licht + "," + ton)
     }
 }
