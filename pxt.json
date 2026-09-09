@@ -1,0 +1,19 @@
+{
+    "name": "bildschirm-spiegel",
+    "version": "0.0.1",
+    "description": "Spiegelt die 5x5-LED-Matrix per USB-Serial an eine Bildschirm-Grossanzeige (M:-Protokoll).",
+    "license": "MIT",
+    "dependencies": {
+        "core": "*"
+    },
+    "files": [
+        "main.ts",
+        "README.md"
+    ],
+    "testFiles": [
+        "test.ts"
+    ],
+    "supportedTargets": [
+        "microbit"
+    ]
+}
