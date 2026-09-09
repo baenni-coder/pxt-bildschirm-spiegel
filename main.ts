@@ -13,6 +13,12 @@
 namespace bildschirmSpiegel {
     let running = false
     let usbReady = false
+    let distValue = 0
+    let distActive = false
+    let temperaturWert = 0
+    let lichtWert = 0
+    let tonWert = 0
+    let werteActive = false
 
     function ensureUSB(): void {
         if (!usbReady) {
@@ -40,6 +46,12 @@ namespace bildschirmSpiegel {
                     }
                 }
                 serial.writeLine("M:" + s)
+                if (distActive) {
+                    serial.writeLine("D:" + distValue)
+                }
+                if (werteActive) {
+                    serial.writeLine("S:" + temperaturWert + "," + lichtWert + "," + tonWert)
+                }
                 basic.pause(50)
             }
         })
@@ -61,8 +73,8 @@ namespace bildschirmSpiegel {
     //% block="Abstand senden %cm cm"
     //% weight=80
     export function abstandSenden(cm: number): void {
-        ensureUSB()
-        serial.writeLine("D:" + cm)
+        distValue = cm
+        distActive = true
     }
 
     /**
@@ -74,7 +86,9 @@ namespace bildschirmSpiegel {
     //% block="Sensorwerte senden|Temperatur %temp Licht %licht Ton %ton"
     //% weight=70
     export function werteSenden(temp: number, licht: number, ton: number): void {
-        ensureUSB()
-        serial.writeLine("S:" + temp + "," + licht + "," + ton)
+        temperaturWert = temp
+        lichtWert = licht
+        tonWert = ton
+        werteActive = true
     }
 }

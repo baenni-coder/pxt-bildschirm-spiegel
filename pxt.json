@@ -1,6 +1,6 @@
 {
     "name": "bildschirm-spiegel",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Spiegelt die 5x5-LED-Matrix per USB-Serial an eine Bildschirm-Grossanzeige (M:-Protokoll).",
     "license": "MIT",
     "dependencies": {
